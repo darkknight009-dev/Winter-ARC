@@ -39,7 +39,6 @@ export default function OnboardingPage() {
     setHabits((prev) => {
       const exists = prev.some((x) => x.label === h.label);
       if (exists) return prev.filter((x) => x.label !== h.label);
-      if (prev.length >= 3) return prev;
       return [...prev, h];
     });
   }
@@ -51,8 +50,8 @@ export default function OnboardingPage() {
 
   async function finish() {
     setError(null);
-    if (habits.length === 0) {
-      setError("Pick at least one habit — non-negotiables only.");
+    if (habits.length < 3) {
+      setError("Minimum three non-negotiables. The arc demands it.");
       return;
     }
     setSaving(true);
@@ -75,16 +74,15 @@ export default function OnboardingPage() {
       );
       if (hErr) throw hErr;
 
-      let photoUrl: string | null = null;
+      let photoPath: string | null = null;
       if (photo) {
         const ext = photo.name.split(".").pop() || "jpg";
         const path = `${user.id}/start.${ext}`;
         const { error: upErr } = await supabase.storage
           .from("progress-photos")
-          .upload(path, photo, { upsert: true });
+          .upload(path, photo, { upsert: true, contentType: photo.type });
         if (!upErr) {
-          const { data } = supabase.storage.from("progress-photos").getPublicUrl(path);
-          photoUrl = data.publicUrl;
+          photoPath = path; // private bucket — render via signed URL
         }
       }
 
@@ -93,7 +91,7 @@ export default function OnboardingPage() {
         kind: "start",
         weight: weight ? Number(weight) : null,
         note: note || null,
-        photo_url: photoUrl,
+        photo_url: photoPath,
       });
       if (sErr) throw sErr;
 
@@ -160,8 +158,8 @@ export default function OnboardingPage() {
             The terms.
           </h1>
           <p className="mt-4 text-sm leading-relaxed text-ink-soft">
-            Maximum three non-negotiables. Choose what you can do on your worst day — that's the
-            only standard that survives 151 of them.
+            Minimum three non-negotiables — what you will do every single day, even your worst
+            day. Add more if you're brave; every one is a promise you'll keep for 151 days.
           </p>
           <div className="mt-8 flex flex-wrap gap-2">
             {SUGGESTED_HABITS.map((h) => {
@@ -194,7 +192,7 @@ export default function OnboardingPage() {
               type="button"
               className="btn btn-ghost shrink-0"
               onClick={() => {
-                if (custom.trim() && habits.length < 3) {
+                if (custom.trim()) {
                   setHabits((prev) => [...prev, { icon: "🎯", label: custom.trim() }]);
                   setCustom("");
                 }
@@ -203,12 +201,18 @@ export default function OnboardingPage() {
               Draft
             </button>
           </div>
-          <p className="eyebrow mt-4">{habits.length}/3 terms accepted</p>
+          <p className="eyebrow mt-4">
+            {habits.length} accepted · 3 minimum
+          </p>
           <div className="mt-10 flex gap-3">
             <button className="btn btn-ghost flex-1" onClick={() => setStep(0)}>
               Back
             </button>
-            <button className="btn btn-primary flex-1" onClick={() => setStep(2)}>
+            <button
+              className="btn btn-primary flex-1"
+              onClick={() => setStep(2)}
+              disabled={habits.length < 3}
+            >
               Continue
             </button>
           </div>

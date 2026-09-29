@@ -27,16 +27,15 @@ export function EndSnapshotForm() {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not signed in");
 
-      let photoUrl: string | null = null;
+      let photoPath: string | null = null;
       if (photo) {
         const ext = photo.name.split(".").pop() || "jpg";
         const path = `${user.id}/end.${ext}`;
         const { error: upErr } = await supabase.storage
           .from("progress-photos")
-          .upload(path, photo, { upsert: true });
+          .upload(path, photo, { upsert: true, contentType: photo.type });
         if (!upErr) {
-          const { data } = supabase.storage.from("progress-photos").getPublicUrl(path);
-          photoUrl = data.publicUrl;
+          photoPath = path; // private bucket — render via signed URL
         }
       }
 
@@ -46,7 +45,7 @@ export function EndSnapshotForm() {
           kind: "end",
           weight: weight ? Number(weight) : null,
           note: note || null,
-          photo_url: photoUrl,
+          photo_url: photoPath,
         },
         { onConflict: "user_id,kind" }
       );

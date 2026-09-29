@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CalendarPlus, BellRing, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { BottomNav } from "@/components/BottomNav";
 
@@ -52,6 +53,25 @@ export default function SettingsPage() {
     router.refresh();
   }
 
+  // Google Calendar template link: daily 21:00 reminder for the arc window.
+  function googleCalendarUrl(): string {
+    const now = new Date();
+    const y = now.getFullYear();
+    // Oct 1 of the current arc year (last year's October if before Oct 1)
+    const startYear = now < new Date(y, 9, 1) ? y - 1 : y;
+    const fmt = (yy: number, m: number, d: number) =>
+      `${yy}${String(m).padStart(2, "0")}${String(d).padStart(2, "0")}T210000Z`;
+    const params = new URLSearchParams({
+      action: "TEMPLATE",
+      text: "Winter Arc — Record the day ❄️",
+      details:
+        "60 seconds. Toggle habits, one honest line, seal the day. Streaks only survive if tonight decides.",
+      dates: `${fmt(startYear, 10, 1)}/${fmt(startYear + 1, 3, 1)}`,
+      recur: "RRULE:FREQ=DAILY;INTERVAL=1",
+    });
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
+  }
+
   if (!profile) {
     return (
       <main className="mx-auto min-h-dvh w-full max-w-lg px-5 pb-32 pt-10">
@@ -68,6 +88,25 @@ export default function SettingsPage() {
       </header>
 
       <div className="divider mb-8" />
+
+      {/* Reminder — the loop's alarm clock */}
+      <section className="card mb-8 p-6">
+        <p className="eyebrow mb-1">Daily reminder</p>
+        <p className="mb-4 text-sm text-ink-soft">
+          A 9:00 PM check-in alarm, every day until the arc ends. Miss it and the streak bleeds.
+        </p>
+        <div className="grid grid-cols-1 gap-3">
+          <a className="btn btn-accent" href={googleCalendarUrl()} target="_blank" rel="noreferrer">
+            <CalendarPlus size={16} /> Add to Google Calendar
+          </a>
+          <a className="btn btn-ghost" href="/api/arc-ics">
+            <Download size={16} /> iPhone / Apple Calendar (.ics)
+          </a>
+        </div>
+        <p className="mt-3 flex items-center gap-2 text-[11px] text-ink-faint">
+          <BellRing size={12} /> Fires at 21:00 your device time, 30-minute heads-up included.
+        </p>
+      </section>
 
       <section className="card mb-8 space-y-6 p-6">
         <div>
@@ -108,6 +147,7 @@ export default function SettingsPage() {
 
       <p className="mt-8 text-center text-[11px] leading-relaxed text-ink-faint">
         Habit changes mid-arc alter your ledger. Choose before Day 1, honor them after.
+        Recorded days are sealed and cannot be undone.
       </p>
 
       <BottomNav />

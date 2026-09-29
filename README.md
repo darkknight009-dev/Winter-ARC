@@ -24,7 +24,11 @@ no proof, and nothing waiting for them at the finish line. Winter Arc OS fixes a
 
 1. **Supabase**: create a project at [supabase.com](https://supabase.com), then:
    - SQL Editor → run the contents of [`supabase/schema.sql`](supabase/schema.sql)
-     (creates tables, RLS policies, signup trigger, storage bucket, report function)
+     (tables, RLS, signup trigger, private storage bucket, immutability triggers,
+     integrity validators, report function)
+   - For an existing install, run [`supabase/migration-security.sql`](supabase/migration-security.sql)
+     instead — it upgrades in place: recorded days become immutable, journals/photos
+     become owner-only, and photos move to signed URLs
    - Project Settings → API → copy the **Project URL**, **anon key**, **service_role key**
 2. **Google OAuth** (Authentication → Sign In / Up → Google):
    - Easiest: enable the **Google provider via Supabase** (Supabase handles the client secret)

@@ -9,6 +9,7 @@ import {
   currentStreak,
   longestStreak,
   fmtDate,
+  zonedNow,
 } from "@/lib/arc";
 import { BottomNav } from "@/components/BottomNav";
 import { ShareButton } from "@/components/ShareButton";
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function ReportPage() {
   const { profile, habits, checkins, freezes, snapshots } = await getArcData();
 
-  const now = new Date();
+  const now = zonedNow(profile.timezone);
   const todayIdx = dayIndexOf(now);
   const over = isArcOver(now);
   const daysSoFar = todayIdx < 0 ? 0 : Math.min(todayIdx + 1, ARC_TOTAL_DAYS);

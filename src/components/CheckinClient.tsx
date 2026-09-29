@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, Flame, Crosshair, Minus, BatteryLow, BatteryMedium, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface HabitLite {
@@ -22,7 +22,30 @@ interface Props {
   isComplete: boolean;
 }
 
-const MOODS = ["😫", "😕", "😐", "🙂", "🔥"];
+/**
+ * Condition readout — instrument gauges, not emojis.
+ * key maps to the DB `mood` value (kept stable for old rows).
+ */
+const CONDITIONS = [
+  { key: "wrecked", icon: BatteryLow, label: "Wrecked" },
+  { key: "low", icon: BatteryMedium, label: "Low" },
+  { key: "neutral", icon: Minus, label: "Neutral" },
+  { key: "sharp", icon: Crosshair, label: "Sharp" },
+  { key: "fire", icon: Flame, label: "On fire" },
+] as const;
+
+const LEGACY_EMOJI_MAP: Record<string, string> = {
+  "😫": "wrecked",
+  "😕": "low",
+  "😐": "neutral",
+  "🙂": "sharp",
+  "🔥": "fire",
+};
+
+function moodToKey(mood: string | null): string | null {
+  if (!mood) return null;
+  return LEGACY_EMOJI_MAP[mood] ?? mood;
+}
 
 export function CheckinClient({
   habits,
@@ -35,17 +58,19 @@ export function CheckinClient({
   isComplete,
 }: Props) {
   const router = useRouter();
+  const sealed = isComplete; // once the day is fully recorded, it cannot be changed
   const [selected, setSelected] = useState<Set<string>>(new Set(todayCheckin?.habits_done ?? []));
-  const [mood, setMood] = useState<string | null>(todayCheckin?.mood ?? null);
+  const [mood, setMood] = useState<string | null>(moodToKey(todayCheckin?.mood ?? null));
   const [journal, setJournal] = useState(todayCheckin?.journal ?? "");
   const [saving, setSaving] = useState(false);
-  const [recorded, setRecorded] = useState(isComplete);
+  const [recorded, setRecorded] = useState(sealed);
   const [error, setError] = useState<string | null>(null);
   const [usedFreeze, setUsedFreeze] = useState(false);
 
   const complete = selected.size >= habits.length && habits.length > 0;
 
   function toggle(id: string) {
+    if (sealed) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -55,6 +80,7 @@ export function CheckinClient({
   }
 
   async function save() {
+    if (sealed) return;
     setSaving(true);
     setError(null);
     try {
@@ -89,6 +115,7 @@ export function CheckinClient({
   }
 
   async function useFreeze() {
+    if (sealed) return;
     setError(null);
     if (freezesUsed >= 3) {
       setError("No freezes left. The cold doesn't care.");
@@ -125,6 +152,52 @@ export function CheckinClient({
     );
   }
 
+  // SEALED state — the day is on the record. Read-only.
+  if (sealed) {
+    const condition = CONDITIONS.find((c) => c.key === mood);
+    return (
+      <section className="card p-5 border-verified">
+        <div className="mb-5 flex items-center justify-between">
+          <p className="eyebrow">Today&apos;s attendance</p>
+          <span className="stamp">✓ Recorded</span>
+        </div>
+
+        <div className="space-y-2">
+          {habits.map((h) => {
+            const done = selected.has(h.id);
+            return (
+              <div key={h.id} className="habit-row" data-done={done} aria-disabled>
+                <span className="checkbox">{done && <Check size={14} strokeWidth={3.5} />}</span>
+                <span className="flex-1 font-display text-2xl uppercase text-ink">{h.label}</span>
+                <span className="eyebrow">{done ? "LOGGED" : "SKIPPED"}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {condition && (
+          <div className="mt-5 flex items-center gap-2 border border-rule px-4 py-3">
+            <condition.icon size={18} className="text-glacier" />
+            <span className="eyebrow">Condition · {condition.label}</span>
+          </div>
+        )}
+
+        {journal && (
+          <div className="mt-4 border-l-2 border-glacier pl-3">
+            <p className="eyebrow mb-1">Log line</p>
+            <p className="text-sm text-ink">{journal}</p>
+          </div>
+        )}
+
+        <p className="mt-5 flex items-center justify-center gap-2 border-t border-rule pt-4 text-center text-xs text-ink-faint">
+          <Lock size={12} />
+          The day is sealed. What&apos;s on the record stays on the record.
+        </p>
+      </section>
+    );
+  }
+
+  // ACTIVE state — today is still open.
   return (
     <section className="card p-5">
       <div className="mb-5 flex items-center justify-between">
@@ -147,19 +220,27 @@ export function CheckinClient({
 
       <div className="mt-6">
         <p className="eyebrow mb-2">Condition</p>
-        <div className="flex gap-2">
-          {MOODS.map((m, i) => (
-            <button
-              key={m}
-              onClick={() => setMood(mood === m ? null : m)}
-              className={`flex h-11 w-11 items-center justify-center border text-lg transition-colors ${
-                mood === m ? "border-ink bg-sunken" : "border-rule hover:border-rule-strong"
-              }`}
-              aria-label={`Mood ${i + 1}`}
-            >
-              {m}
-            </button>
-          ))}
+        <div className="grid grid-cols-5 gap-2">
+          {CONDITIONS.map((c) => {
+            const active = mood === c.key;
+            const Icon = c.icon;
+            return (
+              <button
+                key={c.key}
+                onClick={() => setMood(active ? null : c.key)}
+                className={`flex flex-col items-center gap-1.5 border px-1 py-3 transition-colors ${
+                  active ? "border-ink bg-sunken" : "border-rule hover:border-rule-strong"
+                }`}
+                aria-pressed={active}
+                aria-label={c.label}
+              >
+                <Icon size={20} className={active ? "text-ember" : "text-ink-soft"} />
+                <span className={`text-[9px] font-semibold uppercase tracking-widest ${active ? "text-ink" : "text-ink-faint"}`}>
+                  {c.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -179,6 +260,11 @@ export function CheckinClient({
       <button onClick={save} disabled={saving || arcDay < 0} className="btn btn-primary mt-6 w-full">
         {saving ? "Recording…" : complete ? "Record the day" : "Save check-in"}
       </button>
+      {complete && (
+        <p className="mt-3 text-center text-[11px] text-ink-faint">
+          Recording seals today permanently. Choose honestly.
+        </p>
+      )}
 
       {!isComplete && !usedFreeze && freezesUsed < 3 && (
         <button onClick={useFreeze} className="btn btn-ghost mt-3 w-full">

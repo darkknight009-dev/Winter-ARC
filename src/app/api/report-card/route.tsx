@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { levelFor } from "@/lib/arc";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +13,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("u");
   if (!userId) return new Response("missing user", { status: 400 });
+
+  // Ownership: users may only render their own card.
+  const authSupabase = await createClient();
+  const {
+    data: { user },
+  } = await authSupabase.auth.getUser();
+  if (!user || user.id !== userId) {
+    return new Response("Forbidden", { status: 403 });
+  }
 
   const ARC_TOTAL_DAYS = 151;
 

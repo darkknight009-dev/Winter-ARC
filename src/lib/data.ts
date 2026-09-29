@@ -76,6 +76,22 @@ export async function getArcData(): Promise<ArcData> {
   if (freezesRes.error) throw freezesRes.error;
   if (snapshotsRes.error) throw snapshotsRes.error;
 
+  // Photos are private (RLS bucket): stored value is a storage path.
+  // Resolve short-lived signed URLs for rendering; legacy public URLs pass through.
+  const snapshots = (snapshotsRes.data ?? []) as SnapshotRow[];
+  for (const s of snapshots) {
+    if (s.photo_url && !s.photo_url.startsWith("http")) {
+      try {
+        const { data: signed } = await supabase.storage
+          .from("progress-photos")
+          .createSignedUrl(s.photo_url, 3600);
+        if (signed?.signedUrl) s.photo_url = signed.signedUrl;
+      } catch {
+        s.photo_url = null;
+      }
+    }
+  }
+
   // No habits yet -> onboarding not finished
   if (!habitsRes.data || habitsRes.data.length === 0) redirect("/onboarding");
 

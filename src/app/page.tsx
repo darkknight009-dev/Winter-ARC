@@ -10,6 +10,7 @@ import {
   levelFor,
   currentStreak,
   fmtDate,
+  zonedNow,
 } from "@/lib/arc";
 import { CheckinClient } from "@/components/CheckinClient";
 import { StreakBeacon } from "@/components/StreakBeacon";
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
 export default async function TodayPage() {
   const { profile, habits, checkins, freezes } = await getArcData();
 
-  const now = new Date();
+  const now = zonedNow(profile.timezone);
   const todayIdx = dayIndexOf(now);
   const start = arcStartDate(now);
   const end = arcEndDate(now);

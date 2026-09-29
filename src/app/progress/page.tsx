@@ -7,6 +7,7 @@ import {
   longestStreak,
   fmtDate,
   arcStartDate,
+  zonedNow,
 } from "@/lib/arc";
 import { Heatmap } from "@/components/Heatmap";
 import { BottomNav } from "@/components/BottomNav";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function ProgressPage() {
   const { profile, habits, checkins, freezes, snapshots } = await getArcData();
 
-  const now = new Date();
+  const now = zonedNow(profile.timezone);
   const todayIdx = dayIndexOf(now);
 
   const completedMap = new Map<number, number>();

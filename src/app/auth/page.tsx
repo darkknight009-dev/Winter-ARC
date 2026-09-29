@@ -51,7 +51,7 @@ export default function AuthPage() {
       <ul className="mb-10 space-y-3">
         {[
           "Choose who you are on Feb 28 — then become it.",
-          "Three non-negotiables. Logged daily. No negotiation.",
+          "Minimum three non-negotiables. Logged daily. No negotiation.",
           "A Day-1 snapshot, sealed until the final report.",
         ].map((line) => (
           <li key={line} className="flex gap-3 text-sm leading-relaxed text-ink-soft">

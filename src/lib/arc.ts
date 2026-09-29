@@ -70,6 +70,20 @@ export function startOfDay(d: Date): Date {
   return c;
 }
 
+/**
+ * "Now" as the user experiences it: shifts the server clock (usually UTC on
+ * Vercel) into the user's timezone so day boundaries fall at THEIR midnight,
+ * not the server's. Without this, IST users get UTC day boundaries (+5:30 shift).
+ */
+export function zonedNow(timezone?: string | null): Date {
+  if (!timezone) return new Date();
+  try {
+    return new Date(new Date().toLocaleString("en-US", { timeZone: timezone }));
+  } catch {
+    return new Date();
+  }
+}
+
 /** Local-time arc start (Oct 1) for the current arc year. */
 export function arcStartDate(now: Date = new Date()): Date {
   const y = now.getFullYear();
@@ -155,19 +169,21 @@ export const LEVEL_TITLES = [
 ];
 
 export function levelFor(totalXp: number): LevelInfo {
-  // Level n requires 150 * n^2 total XP (150, 600, 1350, ...).
+  // Thresholds: Lv1 at 0 XP, Lv2 at 300, Lv3 at 900, Lv4 at 1800, ...
+  // i.e. threshold(n) = 150 * n * (n - 1). Level 1 starts at ZERO so the bar
+  // fills from the very first check-in (the old formula had a 150 XP floor bug).
   let level = 1;
-  while (150 * (level + 1) * (level + 1) <= totalXp) level += 1;
-  const floorXp = 150 * level * level;
-  const nextXp = 150 * (level + 1) * (level + 1);
-  const xpIntoLevel = totalXp - floorXp;
+  while (150 * (level + 1) * level <= totalXp) level += 1;
+  const floorXp = 150 * level * (level - 1);
+  const nextXp = 150 * (level + 1) * level;
+  const xpIntoLevel = Math.max(0, totalXp - floorXp);
   const span = nextXp - floorXp;
   return {
     level,
     title: LEVEL_TITLES[Math.min(level - 1, LEVEL_TITLES.length - 1)],
     xpIntoLevel,
     xpForNext: span,
-    progress: Math.min(1, xpIntoLevel / span),
+    progress: Math.min(1, Math.max(0, xpIntoLevel / span)),
   };
 }
 
