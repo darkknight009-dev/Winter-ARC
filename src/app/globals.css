@@ -1,26 +1,436 @@
 @import "tailwindcss";
 
+/*
+ * WINTER ARC OS — MIDNIGHT DISCIPLINE DESIGN SYSTEM
+ * --------------------------------------------------
+ * A cockpit instrument that reads out your discipline.
+ * True-black surfaces, ice-white data, one ember signal,
+ * condensed numerals, hairline structure, zero rounding.
+ */
+
+@theme {
+  /* Surfaces — near-black with a cold blue undertone */
+  --color-paper: #0a0b0d; /* page */
+  --color-surface: #101216; /* cards */
+  --color-sunken: #0d0f12; /* insets */
+
+  /* Data — ice */
+  --color-ink: #f2f5f7; /* primary */
+  --color-ink-soft: #a6adb6; /* secondary */
+  --color-ink-faint: #6e7580; /* tertiary */
+  --color-ink-ghost: #454b54; /* disabled */
+
+  /* Structure */
+  --color-rule: #1e2126;
+  --color-rule-strong: #2c3037;
+
+  /* Accent — cold steel for progress */
+  --color-glacier: #4e8cc6;
+  --color-glacier-deep: #3a6c99;
+  --color-glacier-wash: #14212e;
+
+  /* Signal — ember, reserved for streaks and warnings */
+  --color-ember: #ff4a1f;
+  --color-ember-wash: #2a120b;
+
+  /* Status */
+  --color-verified: #2fbf71;
+  --color-fail: #e5484d;
+
+  /* Typography */
+  --font-display: var(--font-barlow), "Arial Narrow", sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* Shape — an instrument has no curves */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: 0.005em;
+  min-height: 100dvh;
+}
+
+::selection {
+  background: var(--color-ember);
+  color: #0a0b0d;
+}
+
+/* ---------------------------------- type ---------------------------------- */
+
+.font-display {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+.numeral {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 0.92;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* Readout strip — the cockpit status line */
+.readout {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-block: 1px solid var(--color-rule);
+  padding: 8px 0;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+.readout b {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.readout .ember {
+  color: var(--color-ember);
+}
+
+/* -------------------------------- surfaces -------------------------------- */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-rule);
+  border-radius: 0;
+}
+
+.card-sunken {
+  background: var(--color-sunken);
+  border: 1px solid var(--color-rule);
+  border-radius: 0;
+}
+
+.hairline {
+  border-color: var(--color-rule);
+}
+
+.divider {
+  height: 1px;
+  background: var(--color-rule);
+}
+
+/* --------------------------------- inputs --------------------------------- */
+
+.input {
+  width: 100%;
+  background: var(--color-sunken);
+  border: 1px solid var(--color-rule-strong);
+  border-radius: 0;
+  padding: 0.7rem 0.9rem;
+  font-size: 14px;
+  color: var(--color-ink);
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+.input::placeholder {
+  color: var(--color-ink-ghost);
+}
+.input:focus {
+  border-color: var(--color-ink);
+}
+
+/* --------------------------------- buttons -------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0;
+  padding: 0.75rem 1.15rem;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: all 0.1s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-ink);
+  color: #0a0b0d;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #ffffff;
+}
+
+.btn-accent {
+  background: var(--color-ember);
+  color: #0a0b0d;
+}
+.btn-accent:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--color-rule-strong);
+  color: var(--color-ink);
+}
+.btn-ghost:hover:not(:disabled) {
+  border-color: var(--color-ink);
+  background: transparent;
+}
+
+/* --------------------------------- habits --------------------------------- */
+
+.habit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  width: 100%;
+  padding: 1rem 1.1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-rule);
+  border-radius: 0;
+  cursor: pointer;
+  transition: border-color 0.1s ease, background 0.1s ease;
+  text-align: left;
+}
+.habit-row:hover {
+  border-color: var(--color-rule-strong);
+}
+.habit-row[data-done="true"] {
+  background: var(--color-sunken);
+  border-color: var(--color-rule-strong);
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--color-rule-strong);
+  border-radius: 0;
+  background: transparent;
+  transition: all 0.1s ease;
+}
+.habit-row[data-done="true"] .checkbox {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: #0a0b0d;
+}
+
+/* --------------------------------- heatmap -------------------------------- */
+
+.hm-cell {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 0;
+}
+.hm-future {
+  background: transparent;
+  border: 1px dashed var(--color-rule);
+}
+.hm-missed {
+  background: var(--color-ember-wash);
+  border: 1px solid #4a1d0e;
+}
+.hm-partial {
+  background: #2c3a4d;
+}
+.hm-complete {
+  background: var(--color-ink);
+}
+.hm-frozen {
+  background: repeating-linear-gradient(
+    -45deg,
+    #2c3a4d,
+    #2c3a4d 2px,
+    #101216 2px,
+    #101216 4px
+  );
+  border: 1px solid var(--color-rule-strong);
+}
+.hm-today {
+  outline: 2px solid var(--color-ember);
+  outline-offset: 1px;
+}
+
+/* ----------------------------------- nav ---------------------------------- */
+
+.bottom-nav {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 50;
+  background: color-mix(in srgb, #0a0b0d 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--color-rule);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.nav-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 0 8px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+  transition: color 0.1s ease;
+}
+.nav-item[data-active="true"] {
+  color: var(--color-ink);
+}
+.nav-item[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 25%;
+  right: 25%;
+  height: 2px;
+  background: var(--color-ember);
+}
+
+/* --------------------------------- misc ----------------------------------- */
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 1px solid var(--color-rule-strong);
+  color: var(--color-ink-soft);
+  background: transparent;
+}
+
+.leader {
+  flex: 1;
+  border-bottom: 1px dotted var(--color-rule-strong);
+  margin: 0 0.6rem;
+  transform: translateY(-4px);
+}
+
+/* ---------------------- retention: streak & stamps ----------------------- */
+
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 2px solid var(--color-ink);
+  color: var(--color-ink);
+  padding: 4px 10px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+  animation: stamp-in 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+@keyframes stamp-in {
+  0% {
+    opacity: 0;
+    transform: rotate(-2deg) scale(1.6);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(-2deg) scale(1);
+  }
+}
+
+.at-risk {
+  animation: risk-pulse 2.4s ease-in-out infinite;
+}
+@keyframes risk-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.milestone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.milestone .coin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1.5px solid var(--color-ink);
+  background: var(--color-ink);
+  color: #0a0b0d;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+}
+.milestone[data-locked="true"] .coin {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--color-rule-strong);
+  color: var(--color-ink-ghost);
+}
+
+.nice-scroll::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.nice-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-rule-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

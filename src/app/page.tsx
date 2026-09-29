@@ -1,69 +1,153 @@
-import Image from "next/image";
+import Link from "next/link";
+import { getArcData } from "@/lib/data";
+import {
+  ARC_TOTAL_DAYS,
+  arcStartDate,
+  arcEndDate,
+  dayIndexOf,
+  daysRemaining,
+  chapterProgress,
+  levelFor,
+  currentStreak,
+  fmtDate,
+} from "@/lib/arc";
+import { CheckinClient } from "@/components/CheckinClient";
+import { StreakBeacon } from "@/components/StreakBeacon";
+import { BottomNav } from "@/components/BottomNav";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function TodayPage() {
+  const { profile, habits, checkins, freezes } = await getArcData();
+
+  const now = new Date();
+  const todayIdx = dayIndexOf(now);
+  const start = arcStartDate(now);
+  const end = arcEndDate(now);
+  const left = daysRemaining(now);
+
+  const completedMap = new Map<number, number>();
+  for (const c of checkins) completedMap.set(c.arc_day, c.habits_done.length);
+  const frozenSet = new Set(freezes.map((f) => f.arc_day));
+
+  const streak = currentStreak(completedMap, frozenSet, habits.length, Math.max(todayIdx, 0));
+  const totalXp = checkins.reduce(
+    (sum, c) => sum + c.habits_done.length * 10 + (c.habits_done.length === habits.length ? 10 : 0),
+    0
+  );
+  const level = levelFor(totalXp);
+  const { chapter, progress } = chapterProgress(now);
+
+  const todayCheckin = checkins.find((c) => c.arc_day === todayIdx);
+  const dayNum = todayIdx + 1;
+  const preArc = todayIdx < 0;
+  const doneCount = todayCheckin?.habits_done.length ?? 0;
+  const atRisk = !preArc && doneCount < habits.length;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="mx-auto min-h-dvh w-full max-w-lg px-4 pb-32 pt-8">
+      {/* Status line */}
+      <div className="readout mb-6">
+        <span>
+          ARC <b>{preArc ? "PRE" : "LIVE"}</b>
+        </span>
+        <span className={atRisk ? "ember" : ""}>
+          {atRisk ? "TODAY UNRECORDED" : "TODAY LOCKED"}
+        </span>
+        <span>
+          XP <b>{totalXp}</b>
+        </span>
+      </div>
+
+      {/* Hero counter */}
+      <header className="mb-8 flex items-end justify-between">
+        <div>
+          <p className="eyebrow mb-2">
+            {preArc ? `The arc begins ${fmtDate(start)}` : "Days remaining"}
+          </p>
+          <h1 className="numeral text-8xl text-ink">{preArc ? 0 : left}</h1>
+        </div>
+        <div className="text-right">
+          <p className="eyebrow mb-2">Day</p>
+          <p className="numeral text-4xl text-ink-faint">
+            {preArc ? "—" : `${dayNum}/${ARC_TOTAL_DAYS}`}
+          </p>
+          <Link href="/settings" className="eyebrow mt-3 inline-block text-ink-soft underline underline-offset-4">
+            Config
+          </Link>
+        </div>
+      </header>
+
+      {/* Streak beacon — the loop */}
+      <StreakBeacon streak={streak} doneToday={doneCount >= habits.length} preArc={preArc} />
+
+      {/* Ledger */}
+      <section className="mb-6">
+        <p className="eyebrow mb-3">The ledger</p>
+        <div className="card px-5 py-2">
+          <LedgerRow label="Level" value={`LV ${level.level} · ${level.title.toUpperCase()}`} />
+          <LedgerRow label="Total XP" value={String(totalXp)} />
+          <LedgerRow label="Freezes left" value={`${3 - frozenSet.size}/3`} last />
+        </div>
+      </section>
+
+      {/* Ascension bar */}
+      <section className="mb-6">
+        <div className="mb-2 flex items-baseline justify-between">
+          <p className="eyebrow">Ascension</p>
+          <p className="numeral text-xs text-ink-faint">
+            {level.xpIntoLevel}/{level.xpForNext} XP → LV {level.level + 1}
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="h-[4px] w-full bg-sunken border border-rule">
+          <div
+            className="h-full bg-glacier transition-all"
+            style={{ width: `${Math.round(level.progress * 100)}%` }}
+          />
         </div>
-      </main>
+      </section>
+
+      {/* Chapter module */}
+      <section className="card mb-6 p-5">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="eyebrow">
+            Chapter {chapter.id} · {chapter.name}
+          </p>
+          <span className="tag">{Math.round(progress * 100)}%</span>
+        </div>
+        <p className="font-display text-2xl leading-tight text-ink">{chapter.blurb}</p>
+        <div className="mt-4 h-[4px] w-full bg-sunken border border-rule">
+          <div className="h-full bg-glacier" style={{ width: `${Math.round(progress * 100)}%` }} />
+        </div>
+      </section>
+
+      {/* Check-in */}
+      <CheckinClient
+        habits={habits.map((h) => ({ id: h.id, label: h.label, icon: h.icon }))}
+        todayCheckin={
+          todayCheckin
+            ? { habits_done: todayCheckin.habits_done, mood: todayCheckin.mood, journal: todayCheckin.journal }
+            : null
+        }
+        arcYear={start.getFullYear()}
+        arcDay={todayIdx}
+        dateStr={new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)}
+        preArc={preArc}
+        freezesUsed={frozenSet.size}
+        isComplete={doneCount >= habits.length}
+      />
+
+      <BottomNav />
+    </main>
+  );
+}
+
+function LedgerRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  return (
+    <div className={`flex items-baseline py-3 ${last ? "" : "border-b border-rule"}`}>
+      <span className="text-sm text-ink-soft">{label}</span>
+      <span className="leader" />
+      <span className="numeral text-lg text-ink">{value}</span>
     </div>
   );
 }
