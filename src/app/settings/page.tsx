@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarPlus, BellRing, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { arcStartDate } from "@/lib/arc";
 import { BottomNav } from "@/components/BottomNav";
 
 interface Profile {
@@ -53,21 +54,24 @@ export default function SettingsPage() {
     router.refresh();
   }
 
-  // Google Calendar template link: daily 21:00 reminder for the arc window.
+  // Google Calendar template link: daily 9 PM reminder for the arc window.
+  // Times are FLOATING (no Z suffix) so Google renders them in the user's
+  // local timezone — 21:00 IST, not 21:00 UTC (= 2:30 AM IST).
   function googleCalendarUrl(): string {
-    const now = new Date();
-    const y = now.getFullYear();
-    // Oct 1 of the current arc year (last year's October if before Oct 1)
-    const startYear = now < new Date(y, 9, 1) ? y - 1 : y;
+    // arcStartDate() handles all three windows correctly: pre-arc (Sep)
+    // returns the UPCOMING Oct 1; live arc returns its own Oct 1.
+    const start = arcStartDate(new Date());
+    const startY = start.getFullYear();
+    const endY = startY + 1;
     const fmt = (yy: number, m: number, d: number) =>
-      `${yy}${String(m).padStart(2, "0")}${String(d).padStart(2, "0")}T210000Z`;
+      `${yy}${String(m).padStart(2, "0")}${String(d).padStart(2, "0")}T210000`;
     const params = new URLSearchParams({
       action: "TEMPLATE",
       text: "Winter Arc — Record the day ❄️",
       details:
         "60 seconds. Toggle habits, one honest line, seal the day. Streaks only survive if tonight decides.",
-      dates: `${fmt(startYear, 10, 1)}/${fmt(startYear + 1, 3, 1)}`,
-      recur: "RRULE:FREQ=DAILY;INTERVAL=1",
+      dates: `${fmt(startY, 10, 1)}/${fmt(endY, 3, 1)}`,
+      recur: `RRULE:FREQ=DAILY;INTERVAL=1;UNTIL=${fmt(endY, 3, 1)}`,
     });
     return `https://calendar.google.com/calendar/render?${params.toString()}`;
   }

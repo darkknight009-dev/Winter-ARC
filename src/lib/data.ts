@@ -71,6 +71,20 @@ export async function getArcData(): Promise<ArcData> {
 
   if (!profileRes.data) redirect("/onboarding");
   if (profileRes.error) throw profileRes.error;
+
+  // Deterministic name self-heal: if the profile still has the default name
+  // but Google provided a real one, fix it server-side (covers accounts
+  // created before the signup trigger was fixed).
+  const profile = profileRes.data as Profile;
+  if (profile.display_name === "Arc Runner") {
+    const meta = (user.user_metadata ?? {}) as Record<string, string | undefined>;
+    const googleName = meta.display_name || meta.full_name || meta.name;
+    if (googleName) {
+      await supabase.from("profiles").update({ display_name: googleName }).eq("id", user.id);
+      profile.display_name = googleName;
+    }
+  }
+
   if (habitsRes.error) throw habitsRes.error;
   if (checkinsRes.error) throw checkinsRes.error;
   if (freezesRes.error) throw freezesRes.error;
@@ -96,7 +110,7 @@ export async function getArcData(): Promise<ArcData> {
   if (!habitsRes.data || habitsRes.data.length === 0) redirect("/onboarding");
 
   return {
-    profile: profileRes.data as Profile,
+    profile,
     habits: (habitsRes.data ?? []) as Habit[],
     checkins: (checkinsRes.data ?? []) as CheckinRow[],
     freezes: (freezesRes.data ?? []) as Freeze[],

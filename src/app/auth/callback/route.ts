@@ -17,6 +17,22 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
     if (!exchangeError) {
+      // Self-heal: fill the default display name from Google metadata.
+      // Only overwrites the literal default, never a name the user chose.
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const meta = (user.user_metadata ?? {}) as Record<string, string | undefined>;
+        const name = meta.display_name || meta.full_name || meta.name;
+        if (name) {
+          await supabase
+            .from("profiles")
+            .update({ display_name: name })
+            .eq("id", user.id)
+            .eq("display_name", "Arc Runner");
+        }
+      }
       // The data layer reroutes to /onboarding until identity + habits exist.
       return NextResponse.redirect(`${origin}/`);
     }

@@ -178,6 +178,8 @@ create policy "progress_photos_delete" on storage.objects
 -- ============================================================
 
 -- ============================================================
+
+-- ============================================================
 -- IMMUTABILITY + SECURITY HARDENING (idempotent, safe to re-run)
 -- ============================================================
 
@@ -344,6 +346,31 @@ create policy "snapshots_update_own" on public.snapshots
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "snapshots_delete_own" on public.snapshots
   for delete using (auth.uid() = user_id);
+
+-- ------------------------------------------------------------
+-- 3b. BACKFILL — fix profiles created before the Google-name
+--     trigger existed: pull the real name from auth metadata.
+-- ------------------------------------------------------------
+update public.profiles p
+set display_name = coalesce(
+  (select u.raw_user_meta_data ->> 'display_name'
+   from auth.users u where u.id = p.id),
+  (select u.raw_user_meta_data ->> 'full_name'
+   from auth.users u where u.id = p.id),
+  (select u.raw_user_meta_data ->> 'name'
+   from auth.users u where u.id = p.id),
+  p.display_name
+)
+where p.display_name = 'Arc Runner'
+  and exists (
+    select 1 from auth.users u
+    where u.id = p.id
+      and coalesce(
+        u.raw_user_meta_data ->> 'display_name',
+        u.raw_user_meta_data ->> 'full_name',
+        u.raw_user_meta_data ->> 'name'
+      ) is not null
+  );
 
 -- ------------------------------------------------------------
 -- 4. STORAGE — photos are private now. Signed URLs only.

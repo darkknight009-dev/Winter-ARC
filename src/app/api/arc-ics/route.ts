@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { arcStartDate, arcEndDate } from "@/lib/arc";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,17 @@ export async function GET() {
 
   // Anchor the recurrence to the arc window around "now".
   const now = new Date();
+  const start = arcStartDate(now);
+  const end = arcEndDate(now);
 
-  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-  const stamp = fmt(new Date());
+  const fmtUTC = (d: Date) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  const stamp = fmtUTC(new Date());
 
-  // DTSTART: today at 21:00 UTC as a floating recurrence anchor.
-  const dtstart = `${new Date().toISOString().slice(0, 10).replace(/-/g, "")}T210000Z`;
+  // FLOATING local time (no Z, no TZID): the event fires at 21:00 in the
+  // user's own timezone — 9 PM IST stays 9 PM IST. Anchored to the arc's
+  // Oct 1 (arcStartDate handles pre-arc: Sep 30 -> upcoming Oct 1).
+  const dtstart = `${start.getFullYear()}1001T210000`; // Oct 1, 21:00 local
+  const until = `${end.getFullYear()}0228T235959`; // stop after Feb 28
 
   const ics = [
     "BEGIN:VCALENDAR",
@@ -34,8 +40,8 @@ export async function GET() {
     `UID:winter-arc-reminder-${user.id}@winterarc.os`,
     `DTSTAMP:${stamp}`,
     `DTSTART:${dtstart}`,
-    `DTEND:${dtstart.replace("T210000Z", "T211500Z")}`,
-    "RRULE:FREQ=DAILY;INTERVAL=1",
+    `DTEND:${dtstart.replace("T210000", "T211500")}`,
+    `RRULE:FREQ=DAILY;INTERVAL=1;UNTIL=${until}`,
     `SUMMARY:Winter Arc — Record the day ❄️`,
     "DESCRIPTION:60 seconds. Toggle your habits\\, one honest line\\, seal the day. Your streak only survives if tonight decides.",
     "BEGIN:VALARM",

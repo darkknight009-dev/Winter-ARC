@@ -26,9 +26,10 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT signature locally (no network round-trip
+  // to Supabase on every request, unlike getUser()). Cuts ~100-300ms per nav.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const user = claimsData?.claims ? { id: String(claimsData.claims.sub) } : null;
 
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));

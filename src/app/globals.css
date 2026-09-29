@@ -428,6 +428,135 @@ body {
   background: var(--color-rule-strong);
 }
 
+/* ------------------- freeze loader (page transitions) ------------------- */
+
+.freeze-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 6, 8, 0.94);
+  animation: freeze-in 0.18s ease-out both;
+}
+@keyframes freeze-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.freeze-core {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.freeze-flake {
+  width: 96px;
+  height: 96px;
+  animation: flake-rotate 7s linear infinite;
+  overflow: visible;
+}
+@keyframes flake-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.flake-arm line,
+.flake-arm circle {
+  stroke: var(--color-ink);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  fill: none;
+  stroke-dasharray: 60;
+  stroke-dashoffset: 60;
+  animation: flake-draw 0.5s cubic-bezier(0.3, 0, 0.3, 1) forwards;
+}
+.flake-arm circle {
+  fill: var(--color-ember);
+  stroke: var(--color-ember);
+  stroke-width: 1;
+  r: 3;
+  animation-delay: 0.55s;
+}
+@keyframes flake-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.freeze-word {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  animation: word-flicker 0.9s ease-in-out infinite;
+}
+@keyframes word-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.freeze-sweep {
+  width: 120px;
+  height: 2px;
+  background: var(--color-rule);
+  overflow: hidden;
+}
+.freeze-sweep span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  background: var(--color-ember);
+  animation: sweep-slide 0.9s ease-in-out infinite;
+}
+@keyframes sweep-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+/* Skeleton shimmer for instant perceived loads */
+.skel {
+  display: block;
+  background: linear-gradient(
+    100deg,
+    var(--color-sunken) 30%,
+    var(--color-rule) 50%,
+    var(--color-sunken) 70%
+  );
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s ease-in-out infinite;
+  border: 1px solid var(--color-rule);
+}
+@keyframes skel-shimmer {
+  0% {
+    background-position: 180% 0;
+  }
+  100% {
+    background-position: -80% 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition-duration: 0.01ms !important;

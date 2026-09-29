@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Inter } from "next/font/google";
 import "./globals.css";
 import { PWARegister } from "@/components/PWARegister";
+import { FreezeLoader } from "@/components/FreezeLoader";
 
 const barlow = Barlow_Condensed({
   variable: "--font-barlow",
@@ -40,7 +41,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${barlow.variable} ${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-dvh flex flex-col">{children}</body>
+      <body className="min-h-dvh flex flex-col">
+        <FreezeLoader />
+        <PWARegister />
+        {children}
+      </body>
     </html>
   );
 }

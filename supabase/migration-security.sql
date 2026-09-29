@@ -164,6 +164,57 @@ create policy "snapshots_delete_own" on public.snapshots
   for delete using (auth.uid() = user_id);
 
 -- ------------------------------------------------------------
+-- 3b. BACKFILL — fix profiles created before the Google-name
+--     trigger existed: pull the real name from auth metadata.
+-- ------------------------------------------------------------
+update public.profiles p
+set display_name = coalesce(
+  (select u.raw_user_meta_data ->> 'display_name'
+   from auth.users u where u.id = p.id),
+  (select u.raw_user_meta_data ->> 'full_name'
+   from auth.users u where u.id = p.id),
+  (select u.raw_user_meta_data ->> 'name'
+   from auth.users u where u.id = p.id),
+  p.display_name
+)
+where p.display_name = 'Arc Runner'
+  and exists (
+    select 1 from auth.users u
+    where u.id = p.id
+      and coalesce(
+        u.raw_user_meta_data ->> 'display_name',
+        u.raw_user_meta_data ->> 'full_name',
+        u.raw_user_meta_data ->> 'name'
+      ) is not null
+  );
+
+-- ------------------------------------------------------------
+-- 3c. TRIGGER FIX — the original handle_new_user only looked for
+--     'display_name', a key Google never provides, so OAuth users
+--     got 'Arc Runner'. Replace with full-name fallback logic.
+-- ------------------------------------------------------------
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.profiles (id, display_name)
+  values (
+    new.id,
+    coalesce(
+      new.raw_user_meta_data ->> 'display_name',
+      new.raw_user_meta_data ->> 'full_name',
+      new.raw_user_meta_data ->> 'name',
+      'Arc Runner'
+    )
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- 4. STORAGE — photos are private now. Signed URLs only.
 -- ------------------------------------------------------------
 update storage.buckets set public = false where id = 'progress-photos';

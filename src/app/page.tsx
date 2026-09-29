@@ -132,7 +132,7 @@ export default async function TodayPage() {
         }
         arcYear={start.getFullYear()}
         arcDay={todayIdx}
-        dateStr={new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)}
+        dateStr={now.toISOString().slice(0, 10)}
         preArc={preArc}
         freezesUsed={frozenSet.size}
         isComplete={doneCount >= habits.length}

@@ -84,14 +84,21 @@ export function zonedNow(timezone?: string | null): Date {
   }
 }
 
-/** Local-time arc start (Oct 1) for the current arc year. */
+/**
+ * Local-time arc start (Oct 1) for the current arc window.
+ * Three windows:
+ *   Oct 1 Y .. Feb 28 Y+1  -> arc started Oct 1 Y (live)
+ *   Jan 1 Y .. Feb 28 Y    -> previous arc (started Oct 1 Y-1) still live
+ *   Mar 1 Y .. Sep 30 Y    -> previous arc OVER, next arc NOT started:
+ *                             return the UPCOMING Oct 1 Y (pre-arc mode)
+ */
 export function arcStartDate(now: Date = new Date()): Date {
   const y = now.getFullYear();
-  // Before Oct 1 -> the arc started last year's Oct 1 (still running).
-  if (now < new Date(y, ARC_START_MONTH, ARC_START_DAY)) {
-    return new Date(y - 1, ARC_START_MONTH, ARC_START_DAY);
-  }
-  return new Date(y, ARC_START_MONTH, ARC_START_DAY);
+  const startThisYear = new Date(y, ARC_START_MONTH, ARC_START_DAY);
+  if (now >= startThisYear) return startThisYear;
+  const endPrevArc = new Date(y, ARC_END_MONTH, ARC_END_DAY);
+  if (now <= endPrevArc) return new Date(y - 1, ARC_START_MONTH, ARC_START_DAY);
+  return startThisYear; // Mar-Sep: the upcoming arc (pre-arc mode)
 }
 
 export function arcEndDate(now: Date = new Date()): Date {
@@ -112,7 +119,12 @@ export function dayNumber(now: Date = new Date()): number {
 }
 
 export function isArcOver(now: Date = new Date()): boolean {
-  return startOfDay(now) > arcEndDate(now);
+  const y = now.getFullYear();
+  // Live window: from the relevant Oct 1 through the following Feb 28.
+  // Mar-Sep (between arcs) counts as pre-arc, not over.
+  const start = arcStartDate(now);
+  const end = new Date(start.getFullYear() + 1, ARC_END_MONTH, ARC_END_DAY);
+  return startOfDay(now) > end && now < new Date(y, ARC_START_MONTH, ARC_START_DAY);
 }
 
 export function isArcActive(now: Date = new Date()): boolean {
@@ -125,6 +137,12 @@ export function daysRemaining(now: Date = new Date()): number {
   const idx = dayIndexOf(now);
   if (idx < 0) return ARC_TOTAL_DAYS;
   return Math.max(0, ARC_TOTAL_DAYS - idx);
+}
+
+/** True when today falls between Feb 28 and Oct 1 — the off-season (Mar..Sep). */
+export function isOffSeason(now: Date = new Date()): boolean {
+  const m = now.getMonth();
+  return m >= 2 && m <= 8;
 }
 
 export function chapterFor(date: Date): Chapter {
