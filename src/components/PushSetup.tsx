@@ -95,6 +95,39 @@ export function PushSetup() {
     };
   }, [supported]);
 
+  /** Wait until the newest service worker version is the active one. */
+  async function waitForSwActivation(reg: ServiceWorkerRegistration): Promise<void> {
+    await navigator.serviceWorker.ready;
+    // If an updated SW is waiting, tell it to take over and wait for it.
+    if (reg.waiting) {
+      reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      await new Promise<void>((resolve) => {
+        const onChange = () => resolve();
+        navigator.serviceWorker.addEventListener("controllerchange", onChange, { once: true });
+        setTimeout(resolve, 3000); // don't hang forever
+      });
+    }
+    if (reg.active && reg.active.state !== "activated") {
+      await new Promise<void>((resolve) => {
+        const onState = (e: Event) => {
+          if ((e.target as ServiceWorker).state === "activated") {
+            reg.active!.removeEventListener("statechange", onState);
+            resolve();
+          }
+        };
+        reg.active!.addEventListener("statechange", onState);
+        setTimeout(resolve, 3000);
+      });
+    }
+  }
+
+  async function doSubscribe(reg: ServiceWorkerRegistration, vapidKey: string) {
+    return reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidKey),
+    });
+  }
+
   async function subscribe() {
     setBusy(true);
     setMessage(null);
@@ -107,26 +140,50 @@ export function PushSetup() {
         return;
       }
 
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      await navigator.serviceWorker.ready;
-
-      // Kill any stale subscription first — reusing one across key changes
-      // is what triggers "Registration failed - push service error".
-      const existing = await reg.pushManager.getSubscription();
-      if (existing) {
-        await fetch(`/api/push/subscribe?endpoint=${encodeURIComponent(existing.endpoint)}`, {
-          method: "DELETE",
-        }).catch(() => {});
-        await existing.unsubscribe().catch(() => {});
-      }
-
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!vapidKey) throw new Error("Push is not configured (missing VAPID public key).");
 
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      });
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      // An updated SW sitting in "waiting" breaks pushManager.subscribe()
+      // with "push service error" — force it active first.
+      reg.update().catch(() => {});
+      await waitForSwActivation(reg);
+
+      // If a subscription already exists with the SAME key, do NOT destroy
+      // it — unsubscribe-then-resubscribe races the push service and throws.
+      // Just re-sync it to the server (self-heals a missing DB row).
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) {
+        const res = await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(existing.toJSON()),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || "Failed to save subscription");
+        }
+        setSubscribed(true);
+        setMessage("Channel re-synced. First nudge at 18:00 your time.");
+        return;
+      }
+
+      let sub;
+      try {
+        sub = await doSubscribe(reg, vapidKey);
+      } catch {
+        // Transient FCM hiccup or a dying stale subscription: clear it,
+        // let the push service settle, then try exactly once more.
+        const stale = await reg.pushManager.getSubscription();
+        if (stale) {
+          await fetch(`/api/push/subscribe?endpoint=${encodeURIComponent(stale.endpoint)}`, {
+            method: "DELETE",
+          }).catch(() => {});
+          await stale.unsubscribe().catch(() => {});
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        sub = await doSubscribe(reg, vapidKey);
+      }
 
       const res = await fetch("/api/push/subscribe", {
         method: "POST",
@@ -143,7 +200,7 @@ export function PushSetup() {
       const msg = err instanceof Error ? err.message : "Something went wrong";
       setMessage(
         /push service error|registration failed/i.test(msg)
-          ? `${msg} — a stale or mismatched subscription is stuck. Toggle notifications off in your browser's site settings, reload, and try again.`
+          ? `${msg} — clear this site's data in your browser settings (or DevTools → Application → Service Workers → Unregister), reload, and press enable again.`
           : msg
       );
     } finally {
