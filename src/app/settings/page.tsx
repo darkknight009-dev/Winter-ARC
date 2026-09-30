@@ -6,6 +6,7 @@ import { CalendarPlus, BellRing, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { arcStartDate } from "@/lib/arc";
 import { BottomNav } from "@/components/BottomNav";
+import { PushSetup } from "@/components/PushSetup";
 
 interface Profile {
   display_name: string;
@@ -94,13 +95,21 @@ export default function SettingsPage() {
       <div className="divider mb-8" />
 
       {/* Reminder — the loop's alarm clock */}
-      <section className="card mb-8 p-6">
-        <p className="eyebrow mb-1">Daily reminder</p>
+      <section className="card mb-4 p-6">
+        <p className="eyebrow mb-1">Streak notifications</p>
         <p className="mb-4 text-sm text-ink-soft">
-          A 9:00 PM check-in alarm, every day until the arc ends. Miss it and the streak bleeds.
+          Push notifications that hunt you down until the day is recorded. No emojis. No mercy.
+        </p>
+        <PushSetup />
+      </section>
+
+      <section className="card mb-8 p-6">
+        <p className="eyebrow mb-1">Calendar backup</p>
+        <p className="mb-4 text-sm text-ink-soft">
+          Prefer a calendar entry over push? A 9:00 PM alarm, every day until the arc ends.
         </p>
         <div className="grid grid-cols-1 gap-3">
-          <a className="btn btn-accent" href={googleCalendarUrl()} target="_blank" rel="noreferrer">
+          <a className="btn btn-ghost" href={googleCalendarUrl()} target="_blank" rel="noreferrer">
             <CalendarPlus size={16} /> Add to Google Calendar
           </a>
           <a className="btn btn-ghost" href="/api/arc-ics">

@@ -64,12 +64,36 @@ create table if not exists public.snapshots (
   unique (user_id, kind)
 );
 
+-- 5b. Web-push subscriptions (one row per browser/device)
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists push_subscriptions_user_idx on public.push_subscriptions(user_id);
+
+-- 5c. One-push-per-user-per-day ledger (prevents duplicate nudges)
+create table if not exists public.push_log (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  arc_year int not null,
+  arc_day int not null,
+  kind text not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, arc_year, arc_day, kind)
+);
+
 -- 6. Public profiles for everyone
 alter table public.profiles enable row level security;
 alter table public.habits enable row level security;
 alter table public.checkins enable row level security;
 alter table public.freezes enable row level security;
 alter table public.snapshots enable row level security;
+alter table public.push_subscriptions enable row level security;
+alter table public.push_log enable row level security;
 
 create policy "profiles_select_all" on public.profiles
   for select using (true);
@@ -97,6 +121,21 @@ create policy "snapshots_select_all" on public.snapshots
   for select using (true);
 create policy "snapshots_write_own" on public.snapshots
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Push: owner-only, server (service role) writes on dispatch
+create policy "push_subscriptions_select_own" on public.push_subscriptions
+  for select using (auth.uid() = user_id);
+create policy "push_subscriptions_write_own" on public.push_subscriptions
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "push_subscriptions_delete_own" on public.push_subscriptions
+  for delete using (auth.uid() = user_id);
+
+create policy "push_log_select_own" on public.push_log
+  for select using (auth.uid() = user_id);
+create policy "push_log_insert_own" on public.push_log
+  for insert with check (auth.uid() = user_id);
+create policy "push_log_delete_own" on public.push_log
+  for delete using (auth.uid() = user_id);
 
 -- 7. Auto-create profile on signup (works for email + Google OAuth)
 create or replace function public.handle_new_user()
@@ -395,3 +434,49 @@ create policy "progress_photos_write_own" on storage.objects
 create policy "progress_photos_delete_own" on storage.objects
   for delete
   using (bucket_id = 'progress-photos' and auth.uid()::text = (storage.foldername(name))[1]);
+
+-- ------------------------------------------------------------
+-- 5. PUSH NOTIFICATION TABLES — web-push subscriptions + dedupe log
+-- ------------------------------------------------------------
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,  auth text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists push_subscriptions_user_idx on public.push_subscriptions(user_id);
+
+create table if not exists public.push_log (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  arc_year int not null,
+  arc_day int not null,
+  kind text not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, arc_year, arc_day, kind)
+);
+
+alter table public.push_subscriptions enable row level security;
+alter table public.push_log enable row level security;
+
+drop policy if exists "push_subscriptions_select_own" on public.push_subscriptions;
+drop policy if exists "push_subscriptions_write_own" on public.push_subscriptions;
+drop policy if exists "push_subscriptions_delete_own" on public.push_subscriptions;
+drop policy if exists "push_log_select_own" on public.push_log;
+drop policy if exists "push_log_insert_own" on public.push_log;
+drop policy if exists "push_log_delete_own" on public.push_log;
+
+create policy "push_subscriptions_select_own" on public.push_subscriptions
+  for select using (auth.uid() = user_id);
+create policy "push_subscriptions_write_own" on public.push_subscriptions
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "push_subscriptions_delete_own" on public.push_subscriptions
+  for delete using (auth.uid() = user_id);
+
+create policy "push_log_select_own" on public.push_log
+  for select using (auth.uid() = user_id);
+create policy "push_log_insert_own" on public.push_log
+  for insert with check (auth.uid() = user_id);
+create policy "push_log_delete_own" on public.push_log
+  for delete using (auth.uid() = user_id);
