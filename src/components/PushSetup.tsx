@@ -56,11 +56,19 @@ export function PushSetup() {
       const localKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (localKey) {
         try {
-          const res = await fetch("/api/push/config");
-          const cfg = await res.json();
+          const [cfgRes, pkRes] = await Promise.all([
+            fetch("/api/push/config"),
+            fetch("/api/push/public-key"),
+          ]);
+          const cfg = await cfgRes.json();
+          const pk = await pkRes.json();
           if (!cancelled) {
-            if (cfg.configured === false) {
+            if (cfg.configured === false || pk.configured === false) {
               setKeyMismatch("Server has no VAPID keys — check Vercel environment variables.");
+            } else if (pk.public_key !== localKey) {
+              setKeyMismatch(
+                "This build's public key differs from the server's configured key. Fix NEXT_PUBLIC_VAPID_PUBLIC_KEY (and VAPID_PRIVATE_KEY) in Vercel, redeploy, then re-enable notifications."
+              );
             } else if (cfg.pairValid === false) {
               setKeyMismatch(`Server key pair is invalid: ${cfg.pairError ?? "unknown"}`);
             } else {
