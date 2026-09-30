@@ -20,11 +20,19 @@ function ensureConfigured(): boolean {
   return configured;
 }
 
+export interface PushErrorDetail {
+  endpoint: string;
+  statusCode?: number;
+  message: string;
+}
+
 export interface SendResult {
   sent: number;
   /** Endpoints that returned 404/410 — must be pruned from the DB. */
   dead: string[];
   failed: number;
+  /** Rejection details for diagnostics (shown by the settings page). */
+  details: PushErrorDetail[];
 }
 
 /** Fire a push to every device registered for this user. */
@@ -32,7 +40,7 @@ export async function sendPushToUser(
   userId: string,
   payload: PushCopy & { url?: string }
 ): Promise<SendResult> {
-  const result: SendResult = { sent: 0, dead: [], failed: 0 };
+  const result: SendResult = { sent: 0, dead: [], failed: 0, details: [] };
   if (!ensureConfigured()) return result;
 
   const { createAdminClient } = await import("./supabase/admin");
@@ -57,10 +65,12 @@ export async function sendPushToUser(
           typeof err === "object" && err !== null && "statusCode" in err
             ? (err as { statusCode?: number }).statusCode
             : undefined;
+        const message = err instanceof Error ? err.message : String(err);
         if (statusCode === 404 || statusCode === 410) {
           result.dead.push(sub.endpoint);
         } else {
           result.failed += 1;
+          result.details.push({ endpoint: sub.endpoint, statusCode, message });
         }
       }
     })
