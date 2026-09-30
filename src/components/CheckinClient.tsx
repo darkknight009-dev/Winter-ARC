@@ -20,8 +20,6 @@ interface Props {
   preArc: boolean;
   freezesUsed: number;
   isComplete: boolean;
-  /** Streak entering today — used for milestone celebration logic. */
-  streakHint?: number;
 }
 
 /**
@@ -58,7 +56,6 @@ export function CheckinClient({
   preArc,
   freezesUsed,
   isComplete,
-  streakHint = 0,
 }: Props) {
   const router = useRouter();
   const sealed = isComplete; // once the day is fully recorded, it cannot be changed
@@ -108,15 +105,7 @@ export function CheckinClient({
       );
       if (error) throw error;
 
-      if (complete) {
-        setRecorded(true);
-        // Fire-and-forget: celebrate the milestone, log the completion so the        // evening ladder stays silent (cron checks push_log before nagging).
-        void fetch("/api/push/celebrate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ arcYear, arcDay, streakAfter: streakHint }),
-        }).catch(() => {});
-      }
+      if (complete) setRecorded(true);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");

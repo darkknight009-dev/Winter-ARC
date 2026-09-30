@@ -37,8 +37,8 @@ export async function GET(request: Request) {
 
   let stats: Stats;
   try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createAdminClient();
+    const { createClient } = await import("@/lib/supabase/admin");
+    const supabase = createClient();
     const { data: dbData, error } = await supabase.rpc("report_stats", { p_user: userId });
     if (error || !dbData) throw new Error("no stats");
     stats = dbData as Stats;

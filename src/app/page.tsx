@@ -136,7 +136,6 @@ export default async function TodayPage() {
         preArc={preArc}
         freezesUsed={frozenSet.size}
         isComplete={doneCount >= habits.length}
-        streakHint={streak}
       />
 
       <BottomNav />

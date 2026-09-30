@@ -57,24 +57,6 @@ export interface Snapshot {
   created_at: string;
 }
 
-export interface PushSubscriptionRow {
-  id: string;
-  user_id: string;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PushLogRow {
-  user_id: string;
-  arc_year: number;
-  arc_day: number;
-  kind: string;
-  created_at: string;
-}
-
 export interface Database {
   public: {
     Tables: {
@@ -83,16 +65,6 @@ export interface Database {
       checkins: { Row: Checkin; Insert: Partial<Checkin>; Update: Partial<Checkin> };
       freezes: { Row: Freeze; Insert: Partial<Freeze>; Update: Partial<Freeze> };
       snapshots: { Row: Snapshot; Insert: Partial<Snapshot>; Update: Partial<Snapshot> };
-      push_subscriptions: {
-        Row: PushSubscriptionRow;
-        Insert: Partial<PushSubscriptionRow>;
-        Update: Partial<PushSubscriptionRow>;
-      };
-      push_log: {
-        Row: PushLogRow;
-        Insert: Partial<PushLogRow>;
-        Update: Partial<PushLogRow>;
-      };
     };
   };
 }
