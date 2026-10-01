@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, BellRing, Download } from "lucide-react";
+import { CalendarPlus, BellRing, Download, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { arcStartDate } from "@/lib/arc";
 import { BottomNav } from "@/components/BottomNav";
@@ -18,6 +18,10 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -52,6 +56,25 @@ export default function SettingsPage() {
     await supabase.auth.signOut();
     router.replace("/auth");
     router.refresh();
+  }
+
+  async function deleteAllData() {
+    if (deleteConfirmation !== "DELETE") return;
+    setDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const response = await fetch("/api/account/delete-data", { method: "POST" });
+      const result = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Data deletion failed");
+
+      // The auth identity remains, so the user can immediately configure a new arc.
+      router.replace("/onboarding");
+      router.refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Data deletion failed");
+      setDeleting(false);
+    }
   }
 
   // Google Calendar template link: daily 9 PM reminder for the arc window.
@@ -148,6 +171,77 @@ export default function SettingsPage() {
       <button className="btn btn-ghost w-full" onClick={signOut}>
         Sign out
       </button>
+
+      <section className="card mt-8 border-fail p-6">
+        <p className="eyebrow mb-2 text-fail">Danger zone</p>
+        <h2 className="font-display text-3xl uppercase text-ink">Erase the record</h2>
+        <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+          Permanently delete your profile, habits, check-ins, freezes, snapshots, and progress
+          photos. Your sign-in account stays active so you can start a new arc. This cannot be
+          undone.
+        </p>
+
+        {!confirmingDelete ? (
+          <button
+            className="btn btn-ghost mt-5 w-full border-fail text-fail"
+            onClick={() => {
+              setConfirmingDelete(true);
+              setDeleteError(null);
+            }}
+          >
+            <Trash2 size={16} /> Delete all app data
+          </button>
+        ) : (
+          <form
+            className="mt-5 space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void deleteAllData();
+            }}
+          >
+            <div>
+              <label className="eyebrow mb-2 block" htmlFor="delete-confirmation">
+                Type DELETE to confirm
+              </label>
+              <input
+                id="delete-confirmation"
+                className="input"
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                autoComplete="off"
+                autoFocus
+                spellCheck={false}
+              />
+            </div>
+            {deleteError && (
+              <p className="text-sm text-fail" role="alert">
+                {deleteError}
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setConfirmingDelete(false);
+                  setDeleteConfirmation("");
+                  setDeleteError(null);
+                }}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-accent"
+                disabled={deleting || deleteConfirmation !== "DELETE"}
+              >
+                {deleting ? "Erasing…" : "Erase everything"}
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
 
       <p className="mt-8 text-center text-[11px] leading-relaxed text-ink-faint">
         Habit changes mid-arc alter your ledger. Choose before Day 1, honor them after.

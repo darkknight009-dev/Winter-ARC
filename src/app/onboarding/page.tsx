@@ -48,8 +48,30 @@ export default function OnboardingPage() {
     setPhotoPreview(f ? URL.createObjectURL(f) : null);
   }
 
+  function continueToTerms() {
+    if (!identity.trim()) {
+      setError("Write the identity you are committing to become before continuing.");
+      return;
+    }
+    if (!commitment.trim()) {
+      setError("Write the promise that will carry you through the arc before continuing.");
+      return;
+    }
+    setError(null);
+    setStep(1);
+  }
+
   async function finish() {
     setError(null);
+    if (!identity.trim() || !commitment.trim()) {
+      setStep(0);
+      setError("Complete your identity and promise before sealing the pact.");
+      return;
+    }
+    if (!note.trim()) {
+      setError("Write your letter to your Feb-28 self before sealing the pact.");
+      return;
+    }
     if (habits.length < 3) {
       setError("Minimum three non-negotiables. The arc demands it.");
       return;
@@ -66,7 +88,7 @@ export default function OnboardingPage() {
 
       const { error: pErr } = await supabase
         .from("profiles")
-        .upsert({ id: user.id, identity: identity || null, commitment: commitment || null, timezone });
+        .upsert({ id: user.id, identity: identity.trim(), commitment: commitment.trim(), timezone });
       if (pErr) throw pErr;
 
       const { error: hErr } = await supabase.from("habits").insert(
@@ -90,7 +112,7 @@ export default function OnboardingPage() {
         user_id: user.id,
         kind: "start",
         weight: weight ? Number(weight) : null,
-        note: note || null,
+        note: note.trim(),
         photo_url: photoPath,
       });
       if (sErr) throw sErr;
@@ -137,6 +159,7 @@ export default function OnboardingPage() {
             onChange={(e) => setIdentity(e.target.value)}
             placeholder="DISCIPLINED. SHARPENED. GONE."
             maxLength={120}
+            required
           />
           <label className="eyebrow mt-8 mb-2 block">The promise · why it matters</label>
           <textarea
@@ -145,8 +168,10 @@ export default function OnboardingPage() {
             onChange={(e) => setCommitment(e.target.value)}
             placeholder="Your promise to yourself. You'll reread this on the days you want to quit."
             maxLength={400}
+            required
           />
-          <button className="btn btn-primary mt-10 w-full" onClick={() => setStep(1)}>
+          {error && <p className="mt-4 text-sm text-fail" role="alert">{error}</p>}
+          <button className="btn btn-primary mt-10 w-full" onClick={continueToTerms}>
             Continue to terms
           </button>
         </section>
@@ -159,7 +184,7 @@ export default function OnboardingPage() {
           </h1>
           <p className="mt-4 text-sm leading-relaxed text-ink-soft">
             Minimum three non-negotiables — what you will do every single day, even your worst
-            day. Add more if you're brave; every one is a promise you'll keep for 151 days.
+            day. Add more if you&apos;re brave; every one is a promise you&apos;ll keep for 151 days.
           </p>
           <div className="mt-8 flex flex-wrap gap-2">
             {SUGGESTED_HABITS.map((h) => {
@@ -266,6 +291,7 @@ export default function OnboardingPage() {
             onChange={(e) => setNote(e.target.value)}
             placeholder="Dear future me — by February 28, I will have…"
             maxLength={1000}
+            required
           />
 
           {error && <p className="mt-4 text-sm text-fail">{error}</p>}

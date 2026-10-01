@@ -17,7 +17,7 @@ declare
   old_count int;
   new_count int;
 begin
-  if tg_op = 'DELETE' then
+  if tg_op = 'DELETE' and coalesce(current_setting('app.delete_all_data', true), '') <> 'true' then
     raise exception 'Recorded days are immutable: check-ins cannot be deleted.';
   end if;
 
@@ -237,3 +237,36 @@ create policy "progress_photos_write_own" on storage.objects
 create policy "progress_photos_delete_own" on storage.objects
   for delete
   using (bucket_id = 'progress-photos' and auth.uid()::text = (storage.foldername(name))[1]);
+
+-- ------------------------------------------------------------
+-- 5. USER DATA PURGE — explicitly remove all app data for the
+--    signed-in user. The auth identity remains so the user can
+--    start a new arc without creating another account.
+-- ------------------------------------------------------------
+create or replace function public.delete_my_data()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  -- Allow this explicit purge to remove sealed check-ins while keeping
+  -- ordinary check-in deletes blocked by checkins_immutability.
+  perform set_config('app.delete_all_data', 'true', true);
+
+  delete from public.snapshots where user_id = v_user_id;
+  delete from public.freezes where user_id = v_user_id;
+  delete from public.checkins where user_id = v_user_id;
+  delete from public.habits where user_id = v_user_id;
+  delete from public.profiles where id = v_user_id;
+end;
+$$;
+
+revoke all on function public.delete_my_data() from public;
+grant execute on function public.delete_my_data() to authenticated;

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "title": "Reproduce the onboarding skip and inspect persisted data flow",
+      "status": "done"
+    },
+    {
+      "title": "Harden validation at every onboarding save boundary",
+      "status": "done"
+    },
+    {
+      "title": "Run verification checks and explain any deployment gap",
+      "status": "done"
+    }
+  ],
+  "updated_at": "2026-10-01T19:25:38.227Z",
+  "session_id": "01a0f8c7-7714-771f-8c64-365154b6c159"
+}
