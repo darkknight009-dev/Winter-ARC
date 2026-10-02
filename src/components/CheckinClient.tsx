@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Flame, Crosshair, Minus, BatteryLow, BatteryMedium, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { zonedNow, endOfLocalDayUtc } from "@/lib/arc";
 
 interface HabitLite {
   id: string;
@@ -19,7 +20,7 @@ interface Props {
   dateStr: string;
   preArc: boolean;
   freezesUsed: number;
-  isComplete: boolean;
+  profile: { timezone: string };
 }
 
 /**
@@ -47,6 +48,26 @@ function moodToKey(mood: string | null): string | null {
   return LEGACY_EMOJI_MAP[mood] ?? mood;
 }
 
+/**
+ * Supabase/PostgREST errors are plain objects, not Error instances, so
+ * `err instanceof Error` is false and the real message gets swallowed by a
+ * generic fallback. Unwrap whatever we were given into a readable string.
+ */
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "object" && err !== null) {
+    const e = err as { message?: unknown; error_description?: unknown; error?: unknown };
+    const msg = e.message ?? e.error_description ?? e.error;
+    if (typeof msg === "string") return msg;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return "Unknown error";
+    }
+  }
+  return String(err);
+}
+
 export function CheckinClient({
   habits,
   todayCheckin,
@@ -55,22 +76,30 @@ export function CheckinClient({
   dateStr,
   preArc,
   freezesUsed,
-  isComplete,
+  profile,
 }: Props) {
   const router = useRouter();
-  const sealed = isComplete; // once the day is fully recorded, it cannot be changed
   const [selected, setSelected] = useState<Set<string>>(new Set(todayCheckin?.habits_done ?? []));
   const [mood, setMood] = useState<string | null>(moodToKey(todayCheckin?.mood ?? null));
   const [journal, setJournal] = useState(todayCheckin?.journal ?? "");
   const [saving, setSaving] = useState(false);
-  const [recorded, setRecorded] = useState(sealed);
+  const [recorded, setRecorded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usedFreeze, setUsedFreeze] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   const complete = selected.size >= habits.length && habits.length > 0;
+  const nowDate = zonedNow(profile.timezone);
+  const todayStart = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate());
+  const midnight = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+  const nowMs = nowDate.getTime();
+  const isOutsideWindow = nowMs >= midnight.getTime();
+  const isLocked = locked || isOutsideWindow;
+  // Real UTC instant the user's day ends — persisted as checkins.locked_at.
+  const lockedAtIso = endOfLocalDayUtc(profile.timezone).toISOString();
 
   function toggle(id: string) {
-    if (sealed) return;
+    if (isLocked) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -80,7 +109,7 @@ export function CheckinClient({
   }
 
   async function save() {
-    if (sealed) return;
+    if (isLocked) return;
     setSaving(true);
     setError(null);
     try {
@@ -99,23 +128,24 @@ export function CheckinClient({
           habits_done: [...selected],
           mood,
           journal: journal || null,
+          // The day stays editable until the user's local midnight; the trigger
+          // rejects any update once that instant has passed.
+          locked_at: lockedAtIso,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id,arc_year,arc_day" }
       );
       if (error) throw error;
 
-      if (complete) setRecorded(true);
+      if (selected.size > 0 && !recorded) setRecorded(true);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed");
+      setError(errorMessage(err));
     } finally {
       setSaving(false);
     }
-  }
-
-  async function useFreeze() {
-    if (sealed) return;
+  }  async function useFreeze() {
+    if (isLocked) return;
     setError(null);
     if (freezesUsed >= 3) {
       setError("No freezes left. The cold doesn't care.");
@@ -136,7 +166,7 @@ export function CheckinClient({
       setUsedFreeze(true);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Freeze failed");
+      setError(errorMessage(err));
     }
   }
 
@@ -153,7 +183,7 @@ export function CheckinClient({
   }
 
   // SEALED state — the day is on the record. Read-only.
-  if (sealed) {
+  if (isLocked) {
     const condition = CONDITIONS.find((c) => c.key === mood);
     return (
       <section className="card p-5 border-verified">
@@ -212,7 +242,7 @@ export function CheckinClient({
             <button key={h.id} onClick={() => toggle(h.id)} className="habit-row" data-done={done}>
               <span className="checkbox">{done && <Check size={14} strokeWidth={3.5} />}</span>
               <span className="flex-1 font-display text-2xl uppercase text-ink">{h.label}</span>
-              <span className="eyebrow">{done ? "LOGGED" : ""}</span>
+              <span className="eyebrow">{done ? "DONE" : ""}</span>
             </button>
           );
         })}
@@ -258,15 +288,14 @@ export function CheckinClient({
       {error && <p className="mt-4 text-sm text-fail">{error}</p>}
 
       <button onClick={save} disabled={saving || arcDay < 0} className="btn btn-primary mt-6 w-full">
-        {saving ? "Recording…" : complete ? "Record the day" : "Save check-in"}
-      </button>
-      {complete && (
-        <p className="mt-3 text-center text-[11px] text-ink-faint">
-          Recording seals today permanently. Choose honestly.
-        </p>
-      )}
+        {saving ? "Recording…" : selected.size > 0 ? "Record the day" : "Save check-in"}
+      </button>{selected.size > 0 && (
+          <p className="mt-3 text-center text-[11px] text-ink-faint">
+            You can keep editing until midnight. Partial days count for the streak but earn no XP.
+          </p>
+        )}
 
-      {!isComplete && !usedFreeze && freezesUsed < 3 && (
+      {!isLocked && !usedFreeze && freezesUsed < 3 && (
         <button onClick={useFreeze} className="btn btn-ghost mt-3 w-full">
           Use a freeze · {3 - freezesUsed} remaining
         </button>

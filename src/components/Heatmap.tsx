@@ -27,7 +27,7 @@ export function Heatmap({ totalDays, todayIdx, completedMap, frozenSet, habitCou
         title += " · complete";
       } else if (ratio > 0) {
         cls = "hm-partial";
-        title += ` · ${done}/${habitCount}`;
+        title += ` · ${done}/${habitCount} · streak kept, no XP`;
       } else {
         cls = "hm-missed";
         title += " · missed";
@@ -43,8 +43,8 @@ export function Heatmap({ totalDays, todayIdx, completedMap, frozenSet, habitCou
         {cells}
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-ink-soft">
-        <Legend cls="hm-complete" label="Complete" />
-        <Legend cls="hm-partial" label="Partial" />
+        <Legend cls="hm-complete" label="Complete · XP" />
+        <Legend cls="hm-partial" label="Partial · streak only" />
         <Legend cls="hm-missed" label="Missed" />
         <Legend cls="hm-frozen" label="Frozen" />
         <span className="ml-auto tabular-nums text-ink-faint">

@@ -27,8 +27,10 @@ no proof, and nothing waiting for them at the finish line. Winter Arc OS fixes a
      (tables, RLS, signup trigger, private storage bucket, immutability triggers,
      integrity validators, report function)
    - For an existing install, run [`supabase/migration-security.sql`](supabase/migration-security.sql)
-     instead — it upgrades in place: recorded days become immutable, journals/photos
-     become owner-only, and photos move to signed URLs
+     instead — it upgrades in place: adds the `locked_at` column and seals past days,
+     check-ins become editable only until your local midnight, journals/photos become
+     owner-only, and photos move to signed URLs. **Re-run it after pulling new logic
+     changes; it is idempotent.**
    - Project Settings → API → copy the **Project URL**, **anon key**, **service_role key**
 2. **Google OAuth** (Authentication → Sign In / Up → Google):
    - Easiest: enable the **Google provider via Supabase** (Supabase handles the client secret)
@@ -47,7 +49,9 @@ no proof, and nothing waiting for them at the finish line. Winter Arc OS fixes a
 ## How a user experiences it
 
 1. **Sign in with Google** → onboarding: identity, promise, 3 habits, Day-1 snapshot
-2. **Daily** → open the app, toggle habits, mood, one journal line, lock the day
+2. **Daily** → open the app, tick what you actually did, mood, one journal line, record the
+   day. You can edit it any time before your local midnight; after that it is sealed.
+   A partial day still counts for the streak, but only a fully-complete day earns XP.
 3. **Weekly** → Progress page shows the heatmap, streaks, perfect days, this week's log
 4. **Feb 28** → Report page: shareable card, Day-1 letter reveal, before/after, seal the arc
 

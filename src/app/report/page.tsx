@@ -8,6 +8,7 @@ import {
   levelFor,
   currentStreak,
   longestStreak,
+  totalXp as xpTotal,
   fmtDate,
   zonedNow,
 } from "@/lib/arc";
@@ -32,9 +33,9 @@ export default async function ReportPage() {
 
   const totalHabitChecks = checkins.reduce((s, c) => s + c.habits_done.length, 0);
   const perfectDays = [...completedMap.values()].filter((n) => n >= habits.length).length;
-  const totalXp = checkins.reduce(
-    (sum, c) => sum + c.habits_done.length * 10 + (c.habits_done.length === habits.length ? 10 : 0),
-    0
+  const totalXp = xpTotal(
+    checkins.map((c) => c.habits_done.length),
+    habits.length
   );
   const level = levelFor(totalXp);
   const streak = currentStreak(completedMap, frozenSet, habits.length, Math.max(todayIdx, 0));

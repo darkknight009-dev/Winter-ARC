@@ -1,5 +1,8 @@
-/* Minimal service worker: cache-first for static assets, network-first otherwise. */
-const CACHE = "winter-arc-v1";
+/* Minimal service worker: cache-first for static assets, network-first otherwise.
+   NOTE: in production, /_next/static filenames are content-hashed, so cache-first
+   is safe. Never enable this against a dev server — those chunk names are
+   path-based and never change, which would serve stale code indefinitely. */
+const CACHE = "winter-arc-v2";
 
 self.addEventListener("install", () => {
   self.skipWaiting();

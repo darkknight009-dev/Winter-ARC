@@ -34,6 +34,8 @@ export interface Checkin {
   habits_done: string[];
   mood: string | null;
   journal: string | null;
+  /** The user's local midnight for this day; past this instant the row is sealed. */
+  locked_at: string | null;
   created_at: string;
   updated_at: string;
 }

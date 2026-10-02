@@ -35,6 +35,7 @@ create table if not exists public.checkins (
   habits_done uuid[] not null default '{}', -- habit ids completed
   mood text,
   journal text,
+  locked_at timestamptz null, -- set when the local day ends (midnight) - irreversible
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique(user_id, arc_year, arc_day)
@@ -127,10 +128,12 @@ as $$
   with hab as (
     select count(*)::int as n from public.habits h where h.user_id = p_user
   ),
+  -- A day counts toward the streak if the user logged at least one habit
+  -- (or froze it). XP is only paid for fully-complete days.
   days as (
     select c.arc_day
     from public.checkins c
-    where c.user_id = p_user and cardinality(c.habits_done) >= (select n from hab)
+    where c.user_id = p_user and cardinality(c.habits_done) > 0
     union
     select f.arc_day from public.freezes f where f.user_id = p_user
   ),
@@ -149,7 +152,7 @@ as $$
     'habit_checks', (select coalesce(sum(cardinality(c.habits_done)), 0)::int from public.checkins c where c.user_id = p_user),
     'perfect_days', (select count(*)::int from public.checkins c where c.user_id = p_user and cardinality(c.habits_done) >= (select n from hab)),
     'longest_streak', (select longest from best),
-    'total_xp', (select coalesce(sum(cardinality(c.habits_done) * 10 + (case when cardinality(c.habits_done) >= (select n from hab) then 10 else 0 end)), 0)::int from public.checkins c where c.user_id = p_user)
+    'total_xp', (select coalesce(sum(case when cardinality(c.habits_done) >= (select n from hab) and (select n from hab) > 0 then cardinality(c.habits_done) * 10 + 10 else 0 end), 0)::int from public.checkins c where c.user_id = p_user)
   )
   from public.profiles p
   where p.id = p_user;

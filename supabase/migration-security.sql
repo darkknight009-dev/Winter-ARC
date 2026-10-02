@@ -5,17 +5,21 @@
 -- ============================================================
 
 -- ------------------------------------------------------------
--- 1. IMMUTABILITY — a sealed (fully recorded) day can never be
---    un-done: no edits that change its identity, no un-completing
---    a complete day, no deletes.
+-- 0. LOCK COLUMN — the instant each check-in's local day ends. Harmless if the
+--    table already has it.
+-- ------------------------------------------------------------
+alter table public.checkins add column if not exists locked_at timestamptz null;
+
+-- ------------------------------------------------------------
+-- 1. IMMUTABILITY — a check-in is editable during its own local day and
+--    locked permanently once `locked_at` is set (the local day has ended).
+--    Partial saves are fine: the same row is upserted, so logging 3 of 5
+--    habits mid-day is a normal update, not a blocked one.
 -- ------------------------------------------------------------
 create or replace function public.enforce_checkin_immutability()
 returns trigger
 language plpgsql
 as $$
-declare
-  old_count int;
-  new_count int;
 begin
   if tg_op = 'DELETE' and coalesce(current_setting('app.delete_all_data', true), '') <> 'true' then
     raise exception 'Recorded days are immutable: check-ins cannot be deleted.';
@@ -28,12 +32,11 @@ begin
        or new.arc_day is distinct from old.arc_day then
       raise exception 'Recorded days are immutable: day identity cannot be changed.';
     end if;
-
-    -- A complete day can never become incomplete
-    old_count := cardinality(old.habits_done);
-    new_count := cardinality(new.habits_done);
-    if new_count < old_count then
-      raise exception 'Recorded days are immutable: habits cannot be un-logged (% -> %).', old_count, new_count;
+    -- Once the local day has ended (locked_at is in the past), the check-in is
+    -- locked permanently. locked_at itself is always the user's local midnight
+    -- for that day, so edits stay legal until then.
+    if old.locked_at is not null and old.locked_at <= now() then
+      raise exception 'Recorded days are immutable: this day has been locked.';
     end if;
   end if;
 
@@ -45,6 +48,12 @@ drop trigger if exists checkins_immutability on public.checkins;
 create trigger checkins_immutability
   before update or delete on public.checkins
   for each row execute function public.enforce_checkin_immutability();
+
+-- Backfill: check-ins from days that have already ended are sealed now.
+-- Rows for today stay open until the user's local midnight passes.
+update public.checkins
+set locked_at = (date + 1)::timestamptz
+where locked_at is null and date < current_date;
 
 -- ------------------------------------------------------------
 -- 2. INTEGRITY — arc_day must match the calendar date it claims.
@@ -237,6 +246,48 @@ create policy "progress_photos_write_own" on storage.objects
 create policy "progress_photos_delete_own" on storage.objects
   for delete
   using (bucket_id = 'progress-photos' and auth.uid()::text = (storage.foldername(name))[1]);
+
+-- ------------------------------------------------------------
+-- 4b. REPORT STATS — matches the app rules: a partial day keeps the streak
+--     (at least one habit logged, or a freeze) but pays 0 XP. XP is only
+--     awarded for fully-complete days.
+-- ------------------------------------------------------------
+create or replace function public.report_stats(p_user uuid)
+returns json
+language sql
+stable
+security definer set search_path = public
+as $$
+  with hab as (
+    select count(*)::int as n from public.habits h where h.user_id = p_user
+  ),
+  days as (
+    select c.arc_day
+    from public.checkins c
+    where c.user_id = p_user and cardinality(c.habits_done) > 0
+    union
+    select f.arc_day from public.freezes f where f.user_id = p_user
+  ),
+  streaks as (
+    select arc_day, arc_day - row_number() over (order by arc_day) as grp from days
+  ),
+  best as (
+    select coalesce(max(cnt), 0)::int as longest from (
+      select count(*)::int as cnt from streaks group by grp
+    ) t
+  )
+  select json_build_object(
+    'display_name', p.display_name,
+    'identity', p.identity,
+    'days_fought', (select count(*)::int from public.checkins c where c.user_id = p_user),
+    'habit_checks', (select coalesce(sum(cardinality(c.habits_done)), 0)::int from public.checkins c where c.user_id = p_user),
+    'perfect_days', (select count(*)::int from public.checkins c where c.user_id = p_user and cardinality(c.habits_done) >= (select n from hab)),
+    'longest_streak', (select longest from best),
+    'total_xp', (select coalesce(sum(case when cardinality(c.habits_done) >= (select n from hab) and (select n from hab) > 0 then cardinality(c.habits_done) * 10 + 10 else 0 end), 0)::int from public.checkins c where c.user_id = p_user)
+  )
+  from public.profiles p
+  where p.id = p_user;
+$$;
 
 -- ------------------------------------------------------------
 -- 5. USER DATA PURGE — explicitly remove all app data for the

@@ -85,6 +85,31 @@ export function zonedNow(timezone?: string | null): Date {
 }
 
 /**
+ * The calendar date (yyyy-mm-dd) of a zoned Date, read from its LOCAL fields.
+ * Never use toISOString() here: that re-converts to UTC and shifts the date
+ * backwards for users east of UTC, which then fails validate_checkin_day.
+ */
+export function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * The real UTC instant at which the user's current local day ends (their next
+ * midnight). `zonedNow` returns a Date whose LOCAL fields match the user's wall
+ * clock, so the offset between it and the true clock converts one into the other.
+ * Use this for anything persisted (e.g. checkins.locked_at).
+ */
+export function endOfLocalDayUtc(timezone?: string | null, now: Date = new Date()): Date {
+  const zoned = zonedNow(timezone);
+  const midnight = new Date(zoned.getFullYear(), zoned.getMonth(), zoned.getDate() + 1);
+  const offsetMs = now.getTime() - zoned.getTime();
+  return new Date(midnight.getTime() - offsetMs);
+}
+
+/**
  * Local-time arc start (Oct 1) for the current arc window.
  * Three windows:
  *   Oct 1 Y .. Feb 28 Y+1  -> arc started Oct 1 Y (live)
@@ -161,10 +186,21 @@ export function chapterProgress(now: Date = new Date()): { chapter: Chapter; pro
 
 /* ------------------------------- XP & levels ------------------------------ */
 
+/**
+ * XP for a single day. Partial days pay NOTHING — the arc rewards the full
+ * set. A perfect day pays 10 XP per habit plus a 10 XP completion bonus.
+ * Showing up still matters: partial days keep the streak alive (see
+ * `dayCountsForStreak`), they just don't earn XP.
+ */
 export function xpForDay(habitsDone: number, habitCount: number): number {
   if (habitCount <= 0) return 0;
-  // Perfect days pay a bonus to reward full completion.
-  return habitsDone * XP_PER_HABIT + (habitsDone === habitCount ? 10 : 0);
+  if (habitsDone < habitCount) return 0;
+  return habitsDone * XP_PER_HABIT + 10;
+}
+
+/** Total XP across a set of per-day habit counts. */
+export function totalXp(habitCounts: number[], habitCount: number): number {
+  return habitCounts.reduce((sum, n) => sum + xpForDay(n, habitCount), 0);
 }
 
 export interface LevelInfo {
@@ -208,7 +244,17 @@ export function levelFor(totalXp: number): LevelInfo {
 /* ---------------------------- Streaks & freezes --------------------------- */
 
 /**
- * Current streak = consecutive completed (or frozen) days ending today or yesterday.
+ * A day keeps the streak alive if the user showed up at all — at least one
+ * habit logged — or if it was frozen. Completing every habit is what earns XP
+ * and counts as a "perfect day", not what keeps the chain unbroken.
+ */
+export function dayCountsForStreak(habitsDone: number): boolean {
+  return habitsDone > 0;
+}
+
+/**
+ * Current streak = consecutive days that counted (some habits logged, or
+ * frozen) ending today or yesterday.
  * `completedByIndex` maps arc day index -> habits completed count.
  */
 export function currentStreak(
@@ -220,11 +266,12 @@ export function currentStreak(
   if (habitCount === 0) return 0;
   let streak = 0;
   let i = todayIndex;
-  // Today not yet done? Start counting from yesterday so the streak isn't "lost" during the day.
-  const doneToday = (completedByIndex.get(todayIndex) ?? 0) >= habitCount;
+  // Nothing logged today yet? Start counting from yesterday so the streak
+  // isn't "lost" during the day.
+  const doneToday = dayCountsForStreak(completedByIndex.get(todayIndex) ?? 0);
   if (!doneToday && !frozenIndexes.has(todayIndex)) i = todayIndex - 1;
   while (i >= 0) {
-    const done = (completedByIndex.get(i) ?? 0) >= habitCount;
+    const done = dayCountsForStreak(completedByIndex.get(i) ?? 0);
     if (done || frozenIndexes.has(i)) {
       streak += 1;
       i -= 1;
@@ -245,7 +292,7 @@ export function longestStreak(
   let best = 0;
   let run = 0;
   for (let i = 0; i < totalDaysSoFar; i++) {
-    const done = (completedByIndex.get(i) ?? 0) >= habitCount;
+    const done = dayCountsForStreak(completedByIndex.get(i) ?? 0);
     if (done || frozenIndexes.has(i)) {
       run += 1;
       best = Math.max(best, run);

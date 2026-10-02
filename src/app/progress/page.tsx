@@ -5,6 +5,7 @@ import {
   levelFor,
   currentStreak,
   longestStreak,
+  totalXp as xpTotal,
   fmtDate,
   arcStartDate,
   zonedNow,
@@ -24,9 +25,9 @@ export default async function ProgressPage() {
   for (const c of checkins) completedMap.set(c.arc_day, c.habits_done.length);
   const frozenSet = new Set(freezes.map((f) => f.arc_day));
 
-  const totalXp = checkins.reduce(
-    (sum, c) => sum + c.habits_done.length * 10 + (c.habits_done.length === habits.length ? 10 : 0),
-    0
+  const totalXp = xpTotal(
+    checkins.map((c) => c.habits_done.length),
+    habits.length
   );
   const level = levelFor(totalXp);
   const streak = currentStreak(completedMap, frozenSet, habits.length, Math.max(todayIdx, 0));

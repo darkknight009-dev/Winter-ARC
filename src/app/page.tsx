@@ -9,8 +9,10 @@ import {
   chapterProgress,
   levelFor,
   currentStreak,
+  totalXp as xpTotal,
   fmtDate,
   zonedNow,
+  localDateStr,
 } from "@/lib/arc";
 import { CheckinClient } from "@/components/CheckinClient";
 import { StreakBeacon } from "@/components/StreakBeacon";
@@ -32,9 +34,9 @@ export default async function TodayPage() {
   const frozenSet = new Set(freezes.map((f) => f.arc_day));
 
   const streak = currentStreak(completedMap, frozenSet, habits.length, Math.max(todayIdx, 0));
-  const totalXp = checkins.reduce(
-    (sum, c) => sum + c.habits_done.length * 10 + (c.habits_done.length === habits.length ? 10 : 0),
-    0
+  const totalXp = xpTotal(
+    checkins.map((c) => c.habits_done.length),
+    habits.length
   );
   const level = levelFor(totalXp);
   const { chapter, progress } = chapterProgress(now);
@@ -43,7 +45,9 @@ export default async function TodayPage() {
   const dayNum = todayIdx + 1;
   const preArc = todayIdx < 0;
   const doneCount = todayCheckin?.habits_done.length ?? 0;
-  const atRisk = !preArc && doneCount < habits.length;
+  // A partial day still holds the streak, so today is only "at risk" while
+  // nothing at all has been logged.
+  const atRisk = !preArc && doneCount === 0;
 
   return (
     <main className="mx-auto min-h-dvh w-full max-w-lg px-4 pb-32 pt-8">
@@ -80,7 +84,7 @@ export default async function TodayPage() {
       </header>
 
       {/* Streak beacon — the loop */}
-      <StreakBeacon streak={streak} doneToday={doneCount >= habits.length} preArc={preArc} />
+      <StreakBeacon streak={streak} doneToday={doneCount > 0} preArc={preArc} />
 
       {/* Ledger */}
       <section className="mb-6">
@@ -132,10 +136,10 @@ export default async function TodayPage() {
         }
         arcYear={start.getFullYear()}
         arcDay={todayIdx}
-        dateStr={now.toISOString().slice(0, 10)}
+        dateStr={localDateStr(now)}
         preArc={preArc}
         freezesUsed={frozenSet.size}
-        isComplete={doneCount >= habits.length}
+        profile={profile}
       />
 
       <BottomNav />
